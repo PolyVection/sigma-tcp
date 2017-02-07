@@ -1,12 +1,14 @@
 /**
  * Copyright (C) 2012 Analog Devices, Inc.
  *
+ * Modified by PolyVection to work with ADAU1451
+ *
  * THIS SOFTWARE IS PROVIDED BY ANALOG DEVICES "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, NON-INFRINGEMENT,
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  *
  **/
-
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,6 +22,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "sigma_tcp.h"
 
@@ -27,6 +30,25 @@
 #include <net/if.h>
 #include <netinet/if_ether.h>
 #include <sys/ioctl.h>
+
+void delay(int milliseconds)
+{
+    long pause;
+    clock_t now,then;
+
+    pause = milliseconds*(CLOCKS_PER_SEC/1000);
+    now = then = clock();
+    while( (now-then) < pause )
+        now = clock();
+}
+
+static void printArray(uint8_t *a, int skip, int len) {
+    for (int i = skip; i < skip+len; i++){
+	 printf("p[%d]: %02x ", i,a[i]);
+	}
+}
+
+//#define printArray(arr) printArray_((arr), sizeof(arr)/sizeof(arr[0]))
 
 static void addr_to_str(const struct sockaddr *sa, char *s, size_t maxlen)
 {
@@ -38,10 +60,9 @@ static void addr_to_str(const struct sockaddr *sa, char *s, size_t maxlen)
 	case AF_INET6:
 		inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
 				s, maxlen);
-		break;
+	break;
 	default:
 		strncpy(s, "Unkown", maxlen);
-		break;
 	}
 }
 
@@ -74,7 +95,7 @@ static int show_addrs(int sck)
 			continue;
 
 		addr_to_str(addr, ip, INET6_ADDRSTRLEN);
-		printf("%s: %s\n", ifr[i].ifr_name, ip);
+		printf("%s: %s\n", &ifr[i].ifr_name, ip);
 	}
 
 	return 0;
@@ -131,65 +152,145 @@ static void *get_in_addr(struct sockaddr *sa)
 static void handle_connection(int fd)
 {
 	uint8_t *buf;
+	uint8_t *buf_fd = buf; 
 	size_t buf_size;
-	uint8_t *p;
-	unsigned int len;
-	unsigned int addr;
-/*	unsigned int total_len;*/
-	int count, ret;
+	uint8_t *p = buf;
+	uint8_t *data;
+	unsigned int len, data_H, data_L;
+	unsigned int addr, addr_H, addr_L;
+	unsigned int total_len, data_len;
+	int count, count_old, ret, skip; 
 	char command;
 
 	count = 0;
+	count_old=0;
+	skip=0;
 
 	buf_size = 256;
 	buf = malloc(buf_size);
+	p = malloc(buf_size); 
 	if (!buf)
 		goto exit;
 
-	p = buf;
-
 	while (1) {
-		memmove(buf, p, count);
-		p = buf + count;
+		//memmove(buf, p, buf_size);
+		//p = buf;
+		int b = 0;
+		for (int i = count; i > -1; i--){
+			//memmove(p[ret-i], p[b], 1);
+			p[b] = p[count_old-i];
+			b++;
+		}   
 
-		ret = read(fd, p, buf_size - count);
+		printf("\n############################\n");                            
+                printf("############################\n");                                   
+                printf("NEW DATA COMING IN!\n");                                   
+                printf("############################\n");                                   
+                printf("############################\n");   
+
+		printf("\n");
+		printf("buf_size: %d\n", buf_size);
+		printf("count: %d\n", count); 
+		printf("read count: %d\n", buf_size - count);
+		ret = read(fd, p + count, buf_size - count);
+
+		printf("bytes read: %d\n", ret);
 		if (ret <= 0)
-			break;
+			break;	
 
-		p = buf;
-
+		
+		//p = buf;
+		count_old = count + ret;
 		count += ret;
+		skip=0;		
+		printf("Printing whole p: \n");
+		printArray(p,0,256);
+		printf("\nEND OF DATA\n");
+		printf("\n");    
+		printf("\n");
+		//printf("%" PRIu8 "\n", p);
+		
+		if (ret > 0){
+			for (int i = 0; i < ret; i+=14){ 
+				printf("CMD[%d]= %02x; ", i,p[i]);               
+                                               
+                	}
+		};  
+		
+		printf("\n");
 
-		while (count >= 7) {
-			command = p[0];
-/*			total_len = (p[1] << 8) | p[2];*/
-			len = (p[4] << 8) | p[5];
-			addr = (p[6] << 8) | p[7];
 
-			if (command == COMMAND_READ) {
-				p += 8;
-				count -= 8;
 
+
+		while (count > 13) {
+
+			if (p[0+skip] == COMMAND_READ){				
+				
+				total_len 	= p[4+skip];
+				data_len	= p[9+skip];
+				data		= (p[12+skip] << 8) | p[13+skip];
+				addr		= (p[10+skip] << 8) | p[11+skip];
+				addr_H		= p[10+skip];
+				addr_L		= p[11+skip];
+				skip		= skip + total_len;
+				count	        = count - total_len;
+
+				//printf("\nDETECTED READ CMD\n");
+				//printf("ACTUAL SKIP: %d\n", skip);
+				//printf("ACTUAL COUNT: %d\n", count); 
+				//printf("TOTAL MSG LENGTH IS: %d\n", total_len);
+				//printf("TOTAL DATA LENGTH IS: %d\n", data_len);
+				printf("ADDRESS IS: %04x\n", addr);
+				//printf("DATA IS: %04x\n", data);
+				
 				buf[0] = COMMAND_WRITE;
-				buf[1] = (0x4 + len) >> 8;
-				buf[2] = (0x4 + len) & 0xff;
-				buf[3] = backend_ops->read(addr, len, buf + 4);
-				write(fd, buf, 4 + len);
+				//buf[1] = (0x4 + data_len) >> 8;
+				//buf[2] = 0x02;//(0x4 + data_len) & 0xff;
+				//buf[3] = backend_ops->read(addr, data_len, buf + 4);
+				buf[1] = 0x00;
+				buf[2] = 0x00;
+				buf[3] = 0x00;
+				buf[4] = 0x00;
+				buf[5] = 0x00;
+				buf[6] = 0x10;
+				buf[7] = 0x01;
+				buf[8] = 0x00;
+				buf[9] = 0x02;
+				buf[10] = addr_H;
+				buf[11] = addr_L;
+				buf[12] = 0x00;
+				buf[13] = backend_ops->read(addr, data_len, buf + 14);
+                                //delay(100);
+				//buf[14] = backend_ops->read(addr, data_len, buf + 14);
+				//printf("BUF14: %02x", buf[14]);   
+				//printf("BUF15: %02x", buf[15]);
+				//printf("BUF16: %02x", buf[16]);   
+				//printf("DATA READ IS: %02x %02x\n", buf[14], buf[15]); 
+				//printf("SENDING: \n");
+				//printArray(buf,0,16);
+				//printf("\n");
+				write(fd, buf, 16);  
+				//write(fd, buf, 4 + data_len);	
+							
 			} else {
-				/* not enough data, fetch next bytes */
-				if (count < len + 8) {
-					if (buf_size < len + 8) {
-						buf_size = len + 8;
-						buf = realloc(buf, buf_size);
-						if (!buf)
-							goto exit;
-					}
-					break;
-				}
-				backend_ops->write(addr, len, p + 8);
-				p += len + 8;
-				count -= len + 8;
+				
+				total_len       = p[6+skip];                    
+                                data_len        = p[11+skip];                    
+                                data            = (p[14+skip] << 8) | p[15+skip];
+                                data_H		= p[14+skip];
+				data_L		= p[15+skip];
+				addr            = (p[12+skip] << 8) | p[13+skip];
+                                addr_H          = p[12+skip];                   
+                                addr_L          = p[13+skip];                   
+                                skip            = skip + total_len;             
+                                count           = count - total_len; 
+				buf[0] = COMMAND_WRITE;
+				buf[1] = data_H;
+				buf[2] = data_L;
+				printf("WRITE TO: %04x DATA: %02x %02x", addr, data_H, data_L);
+				backend_ops->write(addr, data_len, buf + 1);	
 			}
+			
 		}
 	}
 
@@ -203,6 +304,7 @@ int main(int argc, char *argv[])
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr;
     socklen_t sin_size;
+    struct sigaction sa;
     int reuse = 1;
     char s[INET6_ADDRSTRLEN];
     int ret;
