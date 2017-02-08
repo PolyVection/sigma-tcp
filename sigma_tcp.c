@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2012 Analog Devices, Inc.
  *
- * Modified by PolyVection to work with ADAU1451
+ * Modified by PolyVection to work with ADAU1451 and SigmaStudio 3.14
  *
  * THIS SOFTWARE IS PROVIDED BY ANALOG DEVICES "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, NON-INFRINGEMENT,
@@ -166,7 +166,7 @@ static void handle_connection(int fd)
 	count_old=0;
 	skip=0;
 
-	buf_size = 256;
+	buf_size = 1024;
 	buf = malloc(buf_size);
 	p = malloc(buf_size); 
 	if (!buf)
@@ -203,16 +203,16 @@ static void handle_connection(int fd)
 		count_old = count + ret;
 		count += ret;
 		skip=0;		
-		printf("Printing whole p: \n");
-		printArray(p,0,256);
-		printf("\nEND OF DATA\n");
+		//printf("Printing whole p: \n");
+		//printArray(p,0,256);
+		//printf("\nEND OF DATA\n");
 		printf("\n");    
 		printf("\n");
 		//printf("%" PRIu8 "\n", p);
 		
 		if (ret > 0){
 			for (int i = 0; i < ret; i+=14){ 
-				printf("CMD[%d]= %02x; ", i,p[i]);               
+				//printf("CMD[%d]= %02x; ", i,p[i]);               
                                                
                 	}
 		};  
@@ -274,21 +274,34 @@ static void handle_connection(int fd)
 							
 			} else {
 				
-				total_len       = p[6+skip];                    
-                                data_len        = p[11+skip];                    
+				total_len       =(p[5+skip] << 8) | p[6+skip];// p[6+skip];                    
+                                data_len        = (p[10+skip] << 8) | p[11+skip];//p[11+skip];                    
                                 data            = (p[14+skip] << 8) | p[15+skip];
                                 data_H		= p[14+skip];
 				data_L		= p[15+skip];
 				addr            = (p[12+skip] << 8) | p[13+skip];
                                 addr_H          = p[12+skip];                   
                                 addr_L          = p[13+skip];                   
-                                skip            = skip + total_len;             
-                                count           = count - total_len; 
-				buf[0] = COMMAND_WRITE;
-				buf[1] = data_H;
-				buf[2] = data_L;
-				printf("WRITE TO: %04x DATA: %02x %02x", addr, data_H, data_L);
-				backend_ops->write(addr, data_len, buf + 1);	
+                                //skip            = skip + total_len;             
+                                //count           = count - total_len; 
+				//buf[0] = COMMAND_WRITE;
+				//buf[1] = data_H;
+				//buf[2] = data_L;
+				int e = 0;
+				for(int i = 14; i<total_len; i++){
+					buf[e] = p[i+skip];
+					printf("buf[%d] = p [%d+%d] =  %02x\n", e, i,skip,p[i+skip]);
+					e++;
+				}
+				skip            = skip + total_len;                                       
+                                count           = count - total_len;
+
+				printf("WRITE TO: %04x DATA: ", addr);
+				// printf("DATA_H: %02x\n", data_H);
+				//printf("DATA_L: %02x\n", data_L); 
+				printArray(buf,0,data_len); 
+				printf("\n\n");
+				backend_ops->write(addr, data_len, buf);	
 			}
 			
 		}
