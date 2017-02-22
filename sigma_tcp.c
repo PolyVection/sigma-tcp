@@ -232,18 +232,9 @@ static void handle_connection(int fd)
 				skip		= skip + total_len;
 				count	        = count - total_len;
 
-				//printf("\nDETECTED READ CMD\n");
-				//printf("ACTUAL SKIP: %d\n", skip);
-				//printf("ACTUAL COUNT: %d\n", count); 
-				//printf("TOTAL MSG LENGTH IS: %d\n", total_len);
-				//printf("TOTAL DATA LENGTH IS: %d\n", data_len);
 				printf("ADDRESS IS: %04x\n", addr);
-				//printf("DATA IS: %04x\n", data);
 				
 				buf[0] = COMMAND_WRITE;
-				//buf[1] = (0x4 + data_len) >> 8;
-				//buf[2] = 0x02;//(0x4 + data_len) & 0xff;
-				//buf[3] = backend_ops->read(addr, data_len, buf + 4);
 				buf[1] = 0x00;
 				buf[2] = 0x00;
 				buf[3] = 0x00;
@@ -257,33 +248,15 @@ static void handle_connection(int fd)
 				buf[11] = addr_L;
 				buf[12] = 0x00;
 				buf[13] = backend_ops->read(addr, data_len, buf + 14);
-                                //delay(100);
-				//buf[14] = backend_ops->read(addr, data_len, buf + 14);
-				//printf("BUF14: %02x", buf[14]);   
-				//printf("BUF15: %02x", buf[15]);
-				//printf("BUF16: %02x", buf[16]);   
-				//printf("DATA READ IS: %02x %02x\n", buf[14], buf[15]); 
-				//printf("SENDING: \n");
-				//printArray(buf,0,16);
-				//printf("\n");
 				write(fd, buf, 16);  
-				//write(fd, buf, 4 + data_len);	
+
 							
 			} else {
 				
-				total_len       =(p[5+skip] << 8) | p[6+skip];// p[6+skip];                    
-                                data_len        = (p[10+skip] << 8) | p[11+skip];//p[11+skip];                    
-                                data            = (p[14+skip] << 8) | p[15+skip];
-                                data_H		= p[14+skip];
-				data_L		= p[15+skip];
-				addr            = (p[12+skip] << 8) | p[13+skip];
-                                addr_H          = p[12+skip];                   
-                                addr_L          = p[13+skip];                   
-                                //skip            = skip + total_len;             
-                                //count           = count - total_len; 
-				//buf[0] = COMMAND_WRITE;
-				//buf[1] = data_H;
-				//buf[2] = data_L;
+				total_len       =(p[5+skip] << 8) | p[6+skip];                   
+                                data_len        = (p[10+skip] << 8) | p[11+skip];                 
+				addr            = (p[12+skip] << 8) | p[13+skip];                
+				
 				int e = 0;
 				for(int i = 14; i<total_len; i++){
 					buf[e] = p[i+skip];
@@ -294,8 +267,6 @@ static void handle_connection(int fd)
                                 count           = count - total_len;
 
 				printf("WRITE TO: %04x DATA: ", addr);
-				// printf("DATA_H: %02x\n", data_H);
-				//printf("DATA_L: %02x\n", data_L); 
 				printArray(buf,0,data_len); 
 				printf("\n\n");
 				backend_ops->write(addr, data_len, buf);	
