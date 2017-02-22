@@ -95,7 +95,7 @@ static int show_addrs(int sck)
 			continue;
 
 		addr_to_str(addr, ip, INET6_ADDRSTRLEN);
-		printf("%s: %s\n", &ifr[i].ifr_name, ip);
+		printf("%s: %s\n", (char*)&ifr[i].ifr_name, ip);
 	}
 
 	return 0;
