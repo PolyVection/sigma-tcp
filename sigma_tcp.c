@@ -152,15 +152,12 @@ static void *get_in_addr(struct sockaddr *sa)
 static void handle_connection(int fd)
 {
 	uint8_t *buf;
-	uint8_t *buf_fd = buf; 
 	size_t buf_size;
 	uint8_t *p = buf;
 	uint8_t *data;
-	unsigned int len, data_H, data_L;
 	unsigned int addr, addr_H, addr_L;
 	unsigned int total_len, data_len;
 	int count, count_old, ret, skip; 
-	char command;
 
 	count = 0;
 	count_old=0;
