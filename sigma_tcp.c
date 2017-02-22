@@ -153,8 +153,7 @@ static void handle_connection(int fd)
 {
 	uint8_t *buf;
 	size_t buf_size;
-	uint8_t *p = buf;
-	uint8_t *data;
+	uint8_t *p;
 	unsigned int addr, addr_H, addr_L;
 	unsigned int total_len, data_len;
 	int count, count_old, ret, skip; 
@@ -225,7 +224,6 @@ static void handle_connection(int fd)
 				
 				total_len 	= p[4+skip];
 				data_len	= p[9+skip];
-				data		= (p[12+skip] << 8) | p[13+skip];
 				addr		= (p[10+skip] << 8) | p[11+skip];
 				addr_H		= p[10+skip];
 				addr_L		= p[11+skip];
@@ -285,7 +283,6 @@ int main(int argc, char *argv[])
 	struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr;
     socklen_t sin_size;
-    struct sigaction sa;
     int reuse = 1;
     char s[INET6_ADDRSTRLEN];
     int ret;
